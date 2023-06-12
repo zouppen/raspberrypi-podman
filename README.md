@@ -32,7 +32,7 @@ storage. It detects the user you are running sudo with and places the
 resulting image there.
 
 The conversion takes minutes. Due to Raspberry Pi OS oddity, some
-initial services depend on `multi-user.target` instead of
+one-time services depend on `multi-user.target` instead of
 `basic.target`, so this conversion must pull the system to multi-user
 mode before conversion. A misleading login screen appears while
 converting. No need to login there. Just relax until it says *Ready*.
@@ -61,3 +61,6 @@ remove file
 `/etc/systemd/system/console-getty.service.d/override.conf` inside the
 container.
 
+## Author
+
+Written by Joel Lehtonen / Zouppen. Licenced under the terms of MIT license.

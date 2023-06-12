@@ -1,4 +1,6 @@
 #!/bin/sh -eu
+#
+# Converts 64-bit RPi image to a Podman container. By Joel Lehtonen 2023.
 
 cleanup () {
     set +e
