@@ -61,6 +61,17 @@ remove file
 `/etc/systemd/system/console-getty.service.d/override.conf` inside the
 container.
 
+## How about container to SD card conversion?
+
+The containerized system is manipulated carefully so that the systemd
+overrides are activated only when the system is running inside
+Podman. So, converting container back to SD card image should be
+possible.
+
+Just create a smaller VFAT partition for /boot and rest as ext4
+partition, copy files accordingly and adjust `/etc/fstab`. It should
+work! In case you create a tool, I'm happy to merge it.
+
 ## Issues
 
 QEMU user emulation doesn't emulate system calls but pass them to the host, so
