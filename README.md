@@ -63,7 +63,7 @@ container.
 
 ## Issues
 
-Podman doesn't emulate system calls but pass them to the host, so
+QEMU user emulation doesn't emulate system calls but pass them to the host, so
 don't expect everything to work like in a native system. However,
 running on x86_64 syscalls are mostly compatible.
 
