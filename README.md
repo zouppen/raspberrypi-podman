@@ -3,9 +3,9 @@
 Converts Raspberry Pi OS image to a Podman container.
 
 Input can be any 64 bit Raspberry Pi OS. Tested with *bullseye*. The
-extracted image may not exceed 4GB (or change the value from the
-script. This shouldn't be a problem since you most likely want to use
-*lite* variant anyway.
+converted image may not exceed 4GB (feel free to enlarge the value in
+the script if you need more). This shouldn't be a problem since you
+most likely want to use *lite* variant anyway.
 
 ## Requirements
 
@@ -60,6 +60,14 @@ It does auto login on startup. If that's not what you want, you may
 remove file
 `/etc/systemd/system/console-getty.service.d/override.conf` inside the
 container.
+
+## Issues
+
+Podman doesn't emulate system calls but pass them to the host, so
+don't expect everything to work like in a native system. However,
+running on x86_64 syscalls are mostly compatible.
+
+But man pages should work but they don't. Help is appreciated.
 
 ## Author
 
