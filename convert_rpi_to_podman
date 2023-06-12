@@ -1,0 +1,151 @@
+#!/bin/sh -eu
+
+cleanup () {
+    set +e
+    trap - EXIT INT
+    test ${loopdev+x} && losetup -d "$loopdev"
+    umount -ql "$workdir/boot_orig" "$workdir/boot_copy" "$workdir/root/boot" "$workdir/root" "$workdir"
+    rmdir "$workdir"
+}
+
+run_rpi () {
+    # Sync assets from /boot since it can't be mounted when qemu runs it
+    mount -o ro "${loopdev}p1" "$workdir/boot_orig"
+    rsync -a "$workdir/boot_orig/" "$workdir/boot_copy/"
+    umount "$workdir/boot_orig/"
+    
+    # Qemu serial is ttyAMA0, not serial0, so making run-time adjustment
+    cmdline="`cat "$workdir/boot_copy/cmdline.txt" | sed 's/serial0/ttyAMA0/'`"
+
+    qemu-system-aarch64 \
+	-runas "$SUDO_USER" \
+	-nographic \
+	-nodefaults \
+	-serial "mon:stdio" \
+	-machine raspi3b \
+	-cpu cortex-a72 \
+	-dtb "$workdir/boot_copy/bcm2710-rpi-3-b-plus.dtb" \
+	-m 1G -smp 4 \
+	-kernel "$workdir/boot_copy/kernel8.img" \
+	-no-reboot \
+	-drive "if=sd,format=raw,media=disk,index=0,file=$loopdev" \
+	-append "$cmdline ${1-}"
+
+    # Update partitions in case they've changed
+    partprobe "$loopdev"
+}
+
+mount_root () {
+    mount "${loopdev}p2" "$workdir/root"
+    mount "${loopdev}p1" "$workdir/root/boot"
+}
+
+systemd_override () {
+    mkdir -p "$workdir/root/etc/systemd/system/$1.d"
+    cat >"$workdir/root/etc/systemd/system/$1.d/override.conf"
+}
+
+podman_hide () {
+    systemd_override "$1" <<EOF
+[Unit]
+ConditionVirtualization=!podman
+EOF
+}
+
+if ! test "${SUDO_USER+x}"; then
+    echo "Must be run with sudo" >&2
+    exit 1
+fi
+
+if test $# -ne 2 -a $# -ne 3; then
+    cat >&2 <<EOF
+Usage $0 IMAGEFILE_XZ NAME [INITIAL_USER]
+
+    IMAGEFILE_XZ must point to XZ compressed 64 bit raspberry pi image
+    NAME is the image name to be imported to Podman
+    INITIAL_USER is the name of the first user. Default: $SUDO_USER
+
+EOF
+    exit 1
+fi
+
+newuser="${3-$SUDO_USER}"
+echo "Creating podman container \"$2\" for $SUDO_USER"
+
+# Ask password before going further
+echo "Creating initial user $newuser"
+hash="`openssl passwd -6`"
+
+# Let's go
+unset loopdev workdir
+trap cleanup EXIT INT
+
+# Create work directory as tmpfs for an easy clean-up
+workdir="`mktemp -d`"
+mount -t tmpfs raspiboot "$workdir"
+mkdir -p "$workdir/boot_orig" "$workdir/boot_copy" "$workdir/root/boot"
+
+# Extract image. SD card driver in QEMU requires binary sizes (2G / 4G / ...)
+xzcat --verbose "$1" >"$workdir/sd.img"
+truncate -s 4G "$workdir/sd.img" # Bad if image is already larger than 4GB
+
+# Setting up loop device.
+loopdev="`losetup -f`"
+losetup -P "$loopdev" "$workdir/sd.img"
+
+# Place some files for initial run
+mount_root
+cat >"$workdir/root/etc/systemd/system/containerize.service" <<EOF
+[Unit]
+Description=Prepare containerization
+After=multi-user.target
+Requires=multi-user.target
+SuccessAction=poweroff
+FailureAction=poweroff       
+
+[Service]
+Type=oneshot
+StandardOutput=journal+console
+StandardError=journal+console
+Environment=DEBIAN_FRONTEND=noninteractive
+ExecStart=-/usr/bin/apt-get -y purge dphys-swapfile
+ExecStart=-/usr/bin/apt-get -y autoremove --purge
+#ExecStart=-/usr/bin/rm /etc/systemd/system/containerize.service
+EOF
+echo "$newuser:$hash" >"$workdir/root/boot/userconf.txt"
+umount "$workdir/root/boot" "$workdir/root"
+
+# Run system twice. First it resizes and then creates user etc.
+run_rpi "systemd.unit=poweroff.target"
+run_rpi "systemd.unit=containerize.service"
+
+# Mount final result
+mount_root
+
+# Place arm64 emulator binary in place
+cp -a /usr/bin/qemu-aarch64-static "$workdir/root/usr/bin/"
+
+# Clean out our custom job
+rm "$workdir/root/etc/systemd/system/containerize.service"
+
+# Place virtualization overrides
+podman_hide run-rpc_pipefs.mount
+podman_hide rpi-eeprom-update.service
+
+# Auto login when containerized
+systemd_override console-getty.service <<EOF
+[Unit]
+ConditionVirtualization=podman
+
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $newuser --noclear --keep-baud console 115200,38400,9600 $TERM
+EOF
+
+# Comment out the whole fstab
+sed -i -r 's/^[^#]/# \0/' "$workdir/root/etc/fstab" 
+
+# Create template
+echo "Building podman image..."
+tar --numeric-owner -C "$workdir/root" -c . | sudo -u "$SUDO_USER" podman import --change 'ENTRYPOINT ["/sbin/init"]' - "$2"
+echo "Ready"
