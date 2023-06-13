@@ -84,7 +84,7 @@ trap cleanup EXIT INT
 
 # Create work directory as tmpfs for an easy clean-up
 workdir="`mktemp -d`"
-mount -t tmpfs raspiboot "$workdir"
+mount -t tmpfs -o size=4G raspiboot "$workdir"
 mkdir -p "$workdir/boot_orig" "$workdir/boot_copy" "$workdir/root/boot"
 
 # Extract image. SD card driver in QEMU requires binary sizes (2G / 4G / ...)
@@ -109,10 +109,7 @@ FailureAction=poweroff
 Type=oneshot
 StandardOutput=journal+console
 StandardError=journal+console
-Environment=DEBIAN_FRONTEND=noninteractive
-ExecStart=-/usr/bin/apt-get -y purge dphys-swapfile
-ExecStart=-/usr/bin/apt-get -y autoremove --purge
-#ExecStart=-/usr/bin/rm /etc/systemd/system/containerize.service
+ExecStart=/usr/bin/true
 EOF
 echo "$newuser:$hash" >"$workdir/root/boot/userconf.txt"
 umount "$workdir/root/boot" "$workdir/root"
@@ -133,6 +130,7 @@ rm "$workdir/root/etc/systemd/system/containerize.service"
 # Place virtualization overrides
 podman_hide run-rpc_pipefs.mount
 podman_hide rpi-eeprom-update.service
+podman_hide dphys-swapfile.service
 
 # Auto login when containerized
 systemd_override console-getty.service <<EOF
@@ -147,7 +145,11 @@ EOF
 # Comment out the whole fstab
 sed -i -r 's/^[^#]/# \0/' "$workdir/root/etc/fstab" 
 
+# Share directory
+mkdir -p "$workdir/root/mnt/share" 
+
 # Create template
 echo "Building podman image..."
-tar --numeric-owner -C "$workdir/root" -c . | sudo -u "$SUDO_USER" podman import --change 'ENTRYPOINT ["/sbin/init"]' - "$2"
+tar --numeric-owner -C "$workdir/root" -c . |
+    sudo -u "$SUDO_USER" podman import --change 'ENTRYPOINT ["/sbin/init"]' --change 'VOLUME ["/mnt/share"]' - "$2"
 echo "Ready"

@@ -31,11 +31,13 @@ Please note that this imports the container to your own Podman
 storage. It detects the user you are running sudo with and places the
 resulting image there.
 
-The conversion takes minutes. Due to Raspberry Pi OS oddity, some
-one-time services depend on `multi-user.target` instead of
-`basic.target`, so this conversion must pull the system to multi-user
-mode before conversion. A misleading login screen appears while
-converting. No need to login there. Just relax until it says *Ready*.
+The conversion takes minutes. Due to Raspberry Pi OS initialization
+oddities, we must run it initially with full system emulation to keep
+the file system resize scripts happy. Also, some of the supplied one-time
+services depend on `multi-user.target` instead of `basic.target`, so
+this conversion must pull the system to multi-user mode before
+conversion. **A misleading login screen** appears while converting. No
+need to login there. Just relax until it says *Ready*.
 
 ## Running the container
 
@@ -49,12 +51,13 @@ To run a throwaway container:
 podman run --rm=true -it raspi64
 ```
 
-To create container with your hostname of choice and a shared directory:
+To create a container with your hostname of choice and a shared directory:
 
 ```sh
-podman create --hostname=vadelma --name=vadelma -v raspi_share:/mnt raspi64
-podman start -it vadelma
+podman create -it --hostname=vadelma --name=vadelma -v /path/to/share:/mnt/share raspi64
 ```
+
+To start it, just run `podman start -a vadelma`.
 
 It does auto login on startup. If that's not what you want, you may
 remove file
