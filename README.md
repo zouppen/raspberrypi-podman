@@ -20,8 +20,9 @@ sudo apt install qemu-user-static qemu-system-arm xz-utils podman
 First, obtain Raspberry Pi OS (64-bit) Lite from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/).
 
 Then run conversion. The first argument is the path to the .xz image,
-second argument is the image name. Third, optional argument is the
-name of the initial user, otherwise defaults to your account name.
+second argument is the Podman image name to be created. Third,
+optional argument is the name of the initial user, otherwise defaults
+to your account name.
 
 ```sh
 sudo ./convert_rpi_to_podman ~/Downloads/2023-05-03-raspios-bullseye-arm64-lite.img.xz raspi64
@@ -80,8 +81,6 @@ work! In case you create a tool, I'm happy to merge it.
 QEMU user emulation doesn't emulate system calls but pass them to the host, so
 don't expect everything to work like in a native system. However,
 running on x86_64 syscalls are mostly compatible.
-
-But man pages should work but they don't. Help is appreciated.
 
 ## Author
 
