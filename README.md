@@ -42,9 +42,10 @@ need to login there. Just relax until it says *Ready*.
 
 ## Running the container
 
-After conversion, qemu packages are no longer needed. A static user
-emulator binary is placed in the container root filesystem and is
-automatically used.
+After conversion, a static user emulator binary is placed in the
+container root filesystem and is automatically used. See
+[QemuUserEmulation](https://wiki.debian.org/QemuUserEmulation) for
+technical details.
 
 To run a throwaway container:
 
