@@ -71,12 +71,7 @@ EOF
     exit 1
 fi
 
-newuser="${3-$SUDO_USER}"
-echo "Creating podman container \"$2\" for $SUDO_USER"
-
-# Ask password before going further
-echo "Creating initial user $newuser"
-hash="`openssl passwd -6`"
+echo "Creating podman container \"$2\""
 
 # Let's go
 unset loopdev workdir
@@ -95,37 +90,14 @@ truncate -s 4G "$workdir/sd.img" # Bad if image is already larger than 4GB
 loopdev="`losetup -f`"
 losetup -P "$loopdev" "$workdir/sd.img"
 
-# Place some files for initial run
-mount_root
-cat >"$workdir/root/etc/systemd/system/containerize.service" <<EOF
-[Unit]
-Description=Prepare containerization
-After=multi-user.target
-Requires=multi-user.target
-SuccessAction=poweroff
-FailureAction=poweroff       
-
-[Service]
-Type=oneshot
-StandardOutput=journal+console
-StandardError=journal+console
-ExecStart=/usr/bin/true
-EOF
-echo "$newuser:$hash" >"$workdir/root/boot/userconf.txt"
-umount "$workdir/root/boot" "$workdir/root"
-
-# Run system twice. First it resizes and then creates user etc.
+# Run system once to resize fs, set UUID, etc.
 run_rpi "systemd.unit=poweroff.target"
-run_rpi "systemd.unit=containerize.service"
 
 # Mount final result
 mount_root
 
 # Place arm64 emulator binary in place
 cp -a /usr/bin/qemu-aarch64-static "$workdir/root/usr/bin/"
-
-# Clean out our custom job
-rm "$workdir/root/etc/systemd/system/containerize.service"
 
 # Place virtualization overrides
 podman_hide run-rpc_pipefs.mount
@@ -134,21 +106,47 @@ podman_hide dphys-swapfile.service
 
 # Auto login when containerized
 systemd_override console-getty.service <<EOF
-[Unit]
-ConditionVirtualization=podman
-
 [Service]
+EnvironmentFile=/etc/console-getty
 ExecStart=
-ExecStart=-/sbin/agetty --autologin $newuser --noclear --keep-baud console 115200,38400,9600 $TERM
+ExecStart=-/sbin/agetty --autologin \${AUTOLOGIN} --noclear --keep-baud console 115200,38400,9600 $TERM
 EOF
+
+# Manipulate userconfig a bit to make it work in podman console.
+# Run clean-up script after finishing.
+systemd_override userconfig.service <<EOF
+[Unit]
+Before=console-getty.service
+[Service]
+Environment=PATH=/opt/initial:/usr/sbin:/usr/bin
+TTYPath=/dev/console
+StandardInput=tty
+ExecStopPost=-/opt/initial/podman-clean
+EOF
+
+# Hack: chvt disable during userconfig
+mkdir -p "$workdir/root/opt/initial"
+ln -s ../../bin/true "$workdir/root/opt/initial/chvt"
+
+cat >"$workdir/root/opt/initial/podman-clean" <<EOF
+#!/bin/sh -eu
+clear
+echo "AUTOLOGIN=\$(id -nu 1000)" >/etc/console-getty
+rm -rf /opt/initial
+systemctl revert userconfig
+EOF
+chmod a+x "$workdir/root/opt/initial/podman-clean"
 
 # Comment out the whole fstab
 sed -i -r 's/^[^#]/# \0/' "$workdir/root/etc/fstab" 
 
-# Share directory
+# File system resize is purged
+rm -f "$workdir/root/etc/init.d/resize2fs_once"
+
+# Create share directory
 mkdir -p "$workdir/root/mnt/share" 
 
-# Create template
+# Export this image to podman
 echo "Building podman image..."
 tar --numeric-owner -C "$workdir/root" -c . |
     sudo -u "$SUDO_USER" podman import --change 'ENTRYPOINT ["/sbin/init"]' --change 'VOLUME ["/mnt/share"]' - "$2"

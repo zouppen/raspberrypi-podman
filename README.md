@@ -20,9 +20,7 @@ sudo apt install qemu-user-static qemu-system-arm xz-utils podman
 First, obtain Raspberry Pi OS (64-bit) Lite from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/).
 
 Then run conversion. The first argument is the path to the .xz image,
-second argument is the Podman image name to be created. Third,
-optional argument is the name of the initial user, otherwise defaults
-to your account name.
+second argument is the Podman image name to be created.
 
 ```sh
 sudo ./convert_rpi_to_podman ~/Downloads/2023-05-03-raspios-bullseye-arm64-lite.img.xz raspi64
@@ -34,15 +32,11 @@ resulting image there.
 
 The conversion takes minutes. Due to Raspberry Pi OS initialization
 oddities, we must run it initially with full system emulation to keep
-the file system resize scripts happy. Also, some of the supplied one-time
-services depend on `multi-user.target` instead of `basic.target`, so
-this conversion must pull the system to multi-user mode before
-conversion. **A misleading login screen** appears while converting. No
-need to login there. Just relax until it says *Ready*.
+the file system resize scripts happy.
 
 ## Running the container
 
-After conversion, a static user emulator binary is placed in the
+During conversion, a static user emulator binary is placed in the
 container root filesystem and is automatically used. See
 [QemuUserEmulation](https://wiki.debian.org/QemuUserEmulation) for
 technical details.
@@ -61,10 +55,14 @@ podman create -it --hostname=vadelma --name=vadelma -v /path/to/share:/mnt/share
 
 To start it, just run `podman start -a vadelma`.
 
-It does auto login on startup. If that's not what you want, you may
-remove file
-`/etc/systemd/system/console-getty.service.d/override.conf` inside the
-container.
+On first run new user is prompted. After user creation, auto login
+happens. If that's not what you want, you may revert it by running
+inside the container:
+
+```
+systemctl revert console-getty
+rm /etc/console-getty
+```
 
 ## How about container to SD card conversion?
 
