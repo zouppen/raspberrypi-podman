@@ -83,14 +83,16 @@ running on x86_64 syscalls are mostly compatible.
 
 ### AppArmor
 
-AppArmor is stupid enough to enforce rules in a different cgroup,
+AppArmor is stupid enough to enforce rules in a different mount namespace,
 too. QEMU user emulation requires read access to the binary itself to
 be able to emulate it. Reading the binary is prohibited by some
 profiles such as `man`.
 
 Follow system journal to see if there are AppArmor errors in the
-log. If so, disable (or improve) those rules. To get man pages
-working, you can disable the whole rule. On the host system:
+log. If so, disable (or improve) those rules.
+
+To get man pages working, you can disable the whole rule. On the host
+system:
 
 ```sh
 sudo ln -s /etc/apparmor.d/usr.bin.man /etc/apparmor.d/disable/
