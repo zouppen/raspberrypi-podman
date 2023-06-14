@@ -59,13 +59,12 @@ if ! test "${SUDO_USER+x}"; then
     exit 1
 fi
 
-if test $# -ne 2 -a $# -ne 3; then
+if test $# -ne 2; then
     cat >&2 <<EOF
-Usage $0 IMAGEFILE_XZ NAME [INITIAL_USER]
+Usage $0 IMAGEFILE_XZ NAME
 
-    IMAGEFILE_XZ must point to XZ compressed 64 bit raspberry pi image
+    IMAGEFILE_XZ must point to XZ compressed 64 bit Raspberry Pi OS image
     NAME is the image name to be imported to Podman
-    INITIAL_USER is the name of the first user. Default: $SUDO_USER
 
 EOF
     exit 1
