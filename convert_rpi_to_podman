@@ -5,7 +5,7 @@
 cleanup () {
     set +e
     trap - EXIT INT
-    test ${loopdev+x} && losetup -d "$loopdev"
+    test "${loopdev+x}" && losetup -d "$loopdev"
     umount -ql "$workdir/boot_orig" "$workdir/boot_copy" "$workdir/root/boot" "$workdir/root" "$workdir"
     rmdir "$workdir"
 }
